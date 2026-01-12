@@ -46,25 +46,109 @@ namespace NexusForever.SpellWorks.ViewModels
 
 
 
+        [ObservableProperty]
+        private bool _useFuzzy;
 
+        partial void OnUseFuzzyChanged(bool value)
+        {
+            if (_filters.TryGetValue(typeof(SpellModelDescriptionFilter), out var f) && f is SpellModelDescriptionFilter descFilter)
+            {
+                descFilter.UseFuzzy = value;
+            }
 
+            if (value && _useIDSearch)
+            {
+                _useIDSearch = false;
+                OnUseIDSearchChanged(false);
+                OnPropertyChanged(nameof(UseIDSearch));
+            }
+
+            FilterSpells();
+        }
+
+        [ObservableProperty]
+        private bool _useIDSearch;
+
+        partial void OnUseIDSearchChanged(bool value)
+        {
+            if (_filters.TryGetValue(typeof(SpellModelIDFilter), out var f) && f is SpellModelIDFilter idFilter)
+            {
+                idFilter.useIDSearch = value;
+            }
+
+            if (value && _useFuzzy)
+            {
+                _useFuzzy = false;
+                OnUseFuzzyChanged(false);
+                OnPropertyChanged(nameof(UseFuzzy));
+
+                _filters.Remove(typeof(SpellModelDescriptionFilter));
+            }
+
+            if (!value)
+                _filters.Remove(typeof(SpellModelIDFilter));
+
+            FilterSpells();
+        }
 
         [ObservableProperty]
         private string _searchDescription;
 
         partial void OnSearchDescriptionChanged(string value)
         {
-            /*Spells.Clear();
-
-            var filter = new SpellModelDescriptionFilter
+            if (string.IsNullOrWhiteSpace(value))
             {
-                Description = value
-            };
+                _filters.Remove(typeof(SpellModelDescriptionFilter));
+                _filters.Remove(typeof(SpellModelIDFilter));
+                FilterSpells();
+                return;
+            }
 
-            foreach (var item in _spellModelFilterService.Filter([filter], _spellModelService.SpellModels))
+            // TODO: refactor to handle toggling proerties better, for now ignore warnings
+            if (_useIDSearch) 
             {
-                Spells.Add(item);
-            }*/
+                if (!int.TryParse(value.Trim(), out int id))
+                {
+                    _filters.Remove(typeof(SpellModelIDFilter));
+                    FilterSpells();
+                    return;
+                }
+
+                _filters.Remove(typeof(SpellModelDescriptionFilter));
+
+                if (_filters.TryGetValue(typeof(SpellModelIDFilter), out var existingIdFilter) && existingIdFilter is SpellModelIDFilter idFilter)
+                {
+                    idFilter.Spell4Id = id;
+                    idFilter.useIDSearch = true;
+                }
+                else
+                {
+                    _filters[typeof(SpellModelIDFilter)] = new SpellModelIDFilter
+                    {
+                        Spell4Id = id,
+                        useIDSearch = true
+                    };
+                }
+
+                OnUseIDSearchChanged(_useIDSearch); // Ignore warning, binding is used with bound property
+                return;
+            }
+
+            if (_filters.TryGetValue(typeof(SpellModelDescriptionFilter), out var existing) && existing is SpellModelDescriptionFilter descFilter)
+            {
+                descFilter.Description = value;
+            }
+            else
+            {
+                _filters[typeof(SpellModelDescriptionFilter)] = new SpellModelDescriptionFilter
+                {
+                    Description = value,
+                    UseFuzzy = false,
+                    FuzzyThreshold = 0.4 
+                };
+            }
+
+            OnUseFuzzyChanged(_useFuzzy); // Ignore warning, binding is used with bound property
         }
 
         public ObservableCollection<SpellTargetMechanicType> TargetMechanicTypes { get; } = [];

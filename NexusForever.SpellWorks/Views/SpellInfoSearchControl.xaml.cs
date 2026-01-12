@@ -24,5 +24,15 @@ namespace NexusForever.SpellWorks.Views
         {
             InitializeComponent();
         }
+
+        private void TextBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+
+        }
+
+        private void CheckBox_Checked(object sender, RoutedEventArgs e)
+        {
+
+        }
     }
 }

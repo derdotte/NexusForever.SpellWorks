@@ -48,11 +48,45 @@
 
                 </DataGrid>
 
-                <TextBox
-                    Grid.Row="1"
-                    Text="{Binding SearchDescription, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+                <Grid Grid.Row="1" Margin="6">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="1*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
 
-                </TextBox>
+                    <TextBox
+                        Grid.Column="0"
+                        VerticalAlignment="Center"
+                        Text="{Binding SearchDescription, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                        mah:TextBoxHelper.ClearTextButton="True"
+                        Margin="0,0,8,0" />
+
+                    <TextBlock
+                        Grid.Column="1"
+                        VerticalAlignment="Center"
+                        Margin="0,0,4,0"
+                        Text="Fuzzy?" />
+
+                    <CheckBox
+                        Grid.Column="2"
+                        VerticalAlignment="Center"
+                        IsChecked="{Binding UseFuzzy, Mode=TwoWay}"
+                        Margin="0,0,12,0" />
+
+                    <TextBlock
+                        Grid.Column="3"
+                        VerticalAlignment="Center"
+                        Margin="0,0,4,0"
+                        Text="ID?" />
+
+                    <CheckBox
+                        Grid.Column="4"
+                        VerticalAlignment="Center"
+                        IsChecked="{Binding UseIDSearch, Mode=TwoWay}" />
+                </Grid>
 
             </Grid>
 
@@ -122,9 +156,9 @@
 
                                         <TextBox
                                             mah:TextBoxHelper.ClearTextButton="True">
-                                            
+
                                         </TextBox>
-                                        
+
                                         <ComboBox
                                             mah:TextBoxHelper.ClearTextButton="True"
                                             ItemsSource="{Binding CastMethods}"
@@ -154,12 +188,12 @@
                                 </Grid>
 
                             </GroupBox>
-                            
+
                             <GroupBox
                                 Header="Target Angle">
-                                
+
                             </GroupBox>
-                            
+
                             <GroupBox
                                 Header="Target Mechanic">
 
@@ -200,7 +234,7 @@
                                                         Text="{Binding Converter={StaticResource EnumToStringConverter}}" />
                                                 </DataTemplate>
                                             </ComboBox.ItemTemplate>
-                                            
+
                                         </ComboBox>
 
                                         <ComboBox
@@ -266,23 +300,23 @@
                             <StackPanel
                                 Grid.Column="1"
                                 Orientation="Vertical">
-                                
-                                 <ComboBox
+
+                                <ComboBox
                                     mah:TextBoxHelper.ClearTextButton="True"
                                      ItemsSource="{Binding SpellEffectTypes}"
                                      SelectedItem="{Binding SpellEffectType}">
 
-                                     <ComboBox.ItemTemplate>
-                                         <DataTemplate>
-                                             <TextBlock
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock
                                                  Text="{Binding Converter={StaticResource EnumToStringConverter}}" />
-                                         </DataTemplate>
-                                     </ComboBox.ItemTemplate>
-     
-                                 </ComboBox>
-                                
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+
+                                </ComboBox>
+
                             </StackPanel>
-                            
+
                         </Grid>
 
                     </Expander>
