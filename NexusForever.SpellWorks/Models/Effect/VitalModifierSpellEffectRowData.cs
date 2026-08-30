@@ -1,4 +1,5 @@
-﻿using NexusForever.SpellWorks.GameTable.Static;
+﻿using NexusForever.Game.Static.Entity;
+using NexusForever.Game.Static.Spell;
 
 namespace NexusForever.SpellWorks.Models.Effect
 {

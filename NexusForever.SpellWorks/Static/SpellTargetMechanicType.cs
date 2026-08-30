@@ -1,4 +1,4 @@
-﻿namespace NexusForever.SpellWorks.GameTable.Static
+namespace NexusForever.SpellWorks.Static
 {
     public enum SpellTargetMechanicType
     {

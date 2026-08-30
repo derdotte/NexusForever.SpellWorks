@@ -1,7 +1,7 @@
 ﻿using System.IO;
 using MahApps.Metro.Controls.Dialogs;
 using Nexus.Archive;
-using NexusForever.SpellWorks.GameTable;
+using NexusForever.GameTable;
 
 namespace NexusForever.SpellWorks.Services
 {
@@ -45,18 +45,25 @@ namespace NexusForever.SpellWorks.Services
         {
             return Task.Run(() =>
             {
-                using Stream archiveStream = archive.OpenFileStream(file);
-                using var memoryStream = new MemoryStream();
-                archiveStream.CopyTo(memoryStream);
-                memoryStream.Position = 0;
+                string tempFilePath = Path.GetTempFileName();
+                try
+                {
+                    using (Stream archiveStream = archive.OpenFileStream(file))
+                    using (FileStream tempFileStream = File.Create(tempFilePath))
+                        archiveStream.CopyTo(tempFileStream);
 
-                var textTable = new TextTable(memoryStream);
-                Interlocked.Increment(ref count);
-                controller.SetProgress(count);
+                    var textTable = new TextTable(tempFilePath);
+                    Interlocked.Increment(ref count);
+                    controller.SetProgress(count);
 
-                // TODO: fix me
-                currentTextTable = textTable;
-                return textTable;
+                    // TODO: fix me
+                    currentTextTable = textTable;
+                    return textTable;
+                }
+                finally
+                {
+                    File.Delete(tempFilePath);
+                }
             });
         }
 

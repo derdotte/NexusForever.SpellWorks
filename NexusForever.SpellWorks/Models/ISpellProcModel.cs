@@ -1,5 +1,5 @@
-﻿using NexusForever.SpellWorks.GameTable.Model;
-using NexusForever.SpellWorks.GameTable.Static;
+﻿using NexusForever.GameTable.Model;
+using NexusForever.SpellWorks.Static;
 
 namespace NexusForever.SpellWorks.Models
 {

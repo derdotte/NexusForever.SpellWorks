@@ -1,7 +1,8 @@
 ﻿using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Messaging;
-using NexusForever.SpellWorks.GameTable.Static;
+using NexusForever.Game.Static.Spell;
+using NexusForever.SpellWorks.Static;
 using NexusForever.SpellWorks.Messages;
 using NexusForever.SpellWorks.Models;
 using NexusForever.SpellWorks.Models.Filter;

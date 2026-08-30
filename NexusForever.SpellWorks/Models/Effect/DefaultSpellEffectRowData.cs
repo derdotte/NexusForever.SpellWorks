@@ -1,4 +1,4 @@
-﻿using NexusForever.SpellWorks.GameTable.Model;
+﻿using NexusForever.GameTable.Model;
 
 namespace NexusForever.SpellWorks.Models.Effect
 {

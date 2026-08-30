@@ -1,4 +1,4 @@
-﻿using NexusForever.SpellWorks.GameTable.Static;
+﻿using NexusForever.SpellWorks.Static;
 
 namespace NexusForever.SpellWorks.Models.Filter
 {
@@ -8,7 +8,7 @@ namespace NexusForever.SpellWorks.Models.Filter
 
         public bool Filter(ISpellModel model)
         {
-            return model.SpellBaseModel?.TargetMechanics.TargetType == TargetMechanicType;
+            return (SpellTargetMechanicType?)model.SpellBaseModel?.TargetMechanics.TargetType == TargetMechanicType;
         }
     }
 }

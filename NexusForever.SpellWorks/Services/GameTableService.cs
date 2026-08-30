@@ -1,8 +1,8 @@
 ﻿using System.IO;
 using MahApps.Metro.Controls.Dialogs;
 using Nexus.Archive;
-using NexusForever.SpellWorks.GameTable;
-using NexusForever.SpellWorks.GameTable.Model;
+using NexusForever.GameTable;
+using NexusForever.GameTable.Model;
 
 namespace NexusForever.SpellWorks.Services
 {

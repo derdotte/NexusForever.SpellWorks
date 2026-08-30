@@ -1,7 +1,7 @@
 ﻿using MahApps.Metro.Controls.Dialogs;
 using Microsoft.Extensions.DependencyInjection;
-using NexusForever.SpellWorks.GameTable.Model;
-using NexusForever.SpellWorks.GameTable.Static;
+using NexusForever.GameTable.Model;
+using NexusForever.Game.Static.Spell;
 using NexusForever.SpellWorks.Models;
 
 namespace NexusForever.SpellWorks.Services
