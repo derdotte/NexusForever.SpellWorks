@@ -45,25 +45,18 @@ namespace NexusForever.SpellWorks.Services
         {
             return Task.Run(() =>
             {
-                string tempFilePath = Path.GetTempFileName();
-                try
-                {
-                    using (Stream archiveStream = archive.OpenFileStream(file))
-                    using (FileStream tempFileStream = File.Create(tempFilePath))
-                        archiveStream.CopyTo(tempFileStream);
+                using Stream archiveStream = archive.OpenFileStream(file);
+                using var memoryStream = new MemoryStream();
+                archiveStream.CopyTo(memoryStream);
+                memoryStream.Position = 0;
 
-                    var textTable = new TextTable(tempFilePath);
-                    Interlocked.Increment(ref count);
-                    controller.SetProgress(count);
+                var textTable = new TextTable(memoryStream);
+                Interlocked.Increment(ref count);
+                controller.SetProgress(count);
 
-                    // TODO: fix me
-                    currentTextTable = textTable;
-                    return textTable;
-                }
-                finally
-                {
-                    File.Delete(tempFilePath);
-                }
+                // TODO: fix me
+                currentTextTable = textTable;
+                return textTable;
             });
         }
 
