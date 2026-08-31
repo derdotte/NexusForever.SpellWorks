@@ -1,6 +1,6 @@
 ﻿using MahApps.Metro.Controls.Dialogs;
-using NexusForever.SpellWorks.GameTable;
-using NexusForever.SpellWorks.GameTable.Model;
+using NexusForever.GameTable;
+using NexusForever.GameTable.Model;
 
 namespace NexusForever.SpellWorks.Services
 {

@@ -1,7 +1,7 @@
 ﻿using System.IO;
 using MahApps.Metro.Controls.Dialogs;
 using Nexus.Archive;
-using NexusForever.SpellWorks.GameTable;
+using NexusForever.GameTable;
 
 namespace NexusForever.SpellWorks.Services
 {

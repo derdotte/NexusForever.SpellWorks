@@ -1,4 +1,4 @@
-﻿using NexusForever.SpellWorks.GameTable.Model;
+﻿using NexusForever.GameTable.Model;
 using NexusForever.SpellWorks.Services;
 
 namespace NexusForever.SpellWorks.Models

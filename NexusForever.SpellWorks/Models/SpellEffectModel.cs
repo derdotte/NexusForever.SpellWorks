@@ -1,6 +1,6 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
-using NexusForever.SpellWorks.GameTable.Model;
-using NexusForever.SpellWorks.GameTable.Static;
+using NexusForever.GameTable.Model;
+using NexusForever.Game.Static.Spell;
 using NexusForever.SpellWorks.Models.Effect;
 
 namespace NexusForever.SpellWorks.Models
@@ -8,7 +8,7 @@ namespace NexusForever.SpellWorks.Models
     public class SpellEffectModel : ISpellEffectModel
     {
         public SpellEffectType Type => _entry.EffectType;
-        public uint DamageType => _entry.DamageType;
+        public uint DamageType => (uint)_entry.DamageType;
         public uint DelayTime => _entry.DelayTime;
         public uint TickTime => _entry.TickTime;
         public uint DurationTime => _entry.DurationTime;
