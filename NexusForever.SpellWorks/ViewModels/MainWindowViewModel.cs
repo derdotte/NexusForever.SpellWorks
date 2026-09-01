@@ -4,8 +4,8 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
 using MahApps.Metro.Controls.Dialogs;
-using NexusForever.SpellWorks.Messages;
-using NexusForever.SpellWorks.Services;
+using NexusForever.SpellWorks.Core.Messages;
+using NexusForever.SpellWorks.Core.Services;
 
 namespace NexusForever.SpellWorks.ViewModels
 {
@@ -52,9 +52,23 @@ namespace NexusForever.SpellWorks.ViewModels
         {
             ProgressDialogController controller = await _dialogCoordinator.ShowProgressAsync(this, "Loading Resources...", "");
 
+            var progress = new Progress<EngineProgress>(report =>
+            {
+                if (report.Message != null)
+                    controller.SetMessage(report.Message);
+
+                controller.Minimum = report.Minimum;
+                controller.Maximum = report.Maximum;
+
+                if (report.Value is double value)
+                    controller.SetProgress(value);
+                else
+                    controller.SetIndeterminate();
+            });
+
             try
             {
-                await _resourceService.Initialise(controller);
+                await _resourceService.Initialise(progress);
                 _messenger.Send(new SpellResourcesLoaded());
             }
             catch (Exception e)

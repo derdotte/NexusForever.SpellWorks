@@ -3,9 +3,9 @@ using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
-using NexusForever.SpellWorks.Messages;
-using NexusForever.SpellWorks.Models;
-using NexusForever.SpellWorks.Services;
+using NexusForever.SpellWorks.Core.Messages;
+using NexusForever.SpellWorks.Core.Models;
+using NexusForever.SpellWorks.Core.Services;
 
 namespace NexusForever.SpellWorks.ViewModels
 {

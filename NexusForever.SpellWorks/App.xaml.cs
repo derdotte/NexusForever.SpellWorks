@@ -4,9 +4,9 @@ using CommunityToolkit.Mvvm.Messaging;
 using MahApps.Metro.Controls.Dialogs;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using NexusForever.SpellWorks.Configuration;
-using NexusForever.SpellWorks.Models;
-using NexusForever.SpellWorks.Services;
+using NexusForever.SpellWorks.Core.Configuration;
+using NexusForever.SpellWorks.Core.Models;
+using NexusForever.SpellWorks.Core.Services;
 using NexusForever.SpellWorks.ViewModels;
 using NexusForever.SpellWorks.Views.Windows;
 
@@ -67,7 +67,7 @@ namespace NexusForever.SpellWorks
             services.AddTransient<ISpellEffectModel, SpellEffectModel>();
             services.AddTransient<ISpellProcModel, SpellProcModel>();
 
-            foreach (Type type in Assembly.GetExecutingAssembly().GetTypes())
+            foreach (Type type in typeof(ISpellEffectColumnData).Assembly.GetTypes())
             {
                 var attribute = type.GetCustomAttribute<SpellEffectAttribute>();
                 if (attribute == null)

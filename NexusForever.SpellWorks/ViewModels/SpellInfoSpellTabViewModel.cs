@@ -1,5 +1,5 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
-using NexusForever.SpellWorks.Models;
+using NexusForever.SpellWorks.Core.Models;
 
 namespace NexusForever.SpellWorks.ViewModels
 {
