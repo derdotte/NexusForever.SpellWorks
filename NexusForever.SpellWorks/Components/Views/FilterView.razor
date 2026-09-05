@@ -1,0 +1,489 @@
+@using NexusForever.Game.Static.Spell
+@using NexusForever.SpellWorks.Services.Filtering
+@implements IDisposable
+
+<div class="filter-body">
+    <div class="chips">
+        <span class="chips-label">Active</span>
+
+        @foreach (FilterChip chip in _chips)
+        {
+            if (chip.IsSeparator)
+            {
+                <span class="chip-or">@chip.Label</span>
+            }
+            else
+            {
+                <button type="button" class="chip" @onclick="() => Clear(chip)">@chip.Label<i class="ph ph-x"></i></button>
+            }
+        }
+
+        @if (_chips.Count == 0)
+        {
+            <span class="none">no constraints — all rows returned</span>
+        }
+
+        <div class="flex"></div>
+        <span class="shape">@Shape</span>
+        <button type="button" class="reset-btn" @onclick="ResetAll">Reset all</button>
+    </div>
+
+    @* The common band is only meaningful once there is more than one block to apply across. *@
+    @if (ShowCommon)
+    {
+        <div class="common-band" data-group="common">
+            <div class="group-head">
+                <span class="tick"></span>
+                <span class="group-title">Applies to all blocks</span>
+            </div>
+            <div class="fields">
+                @foreach (FilterCondition condition in Q.Common.Conditions.ToList())
+                {
+                    FilterFieldSchema field = Schema?.Field(condition.Field);
+                    if (field != null)
+                    {
+                        @Row(field, condition, Q.Common, first: true)
+                    }
+                }
+            </div>
+        </div>
+    }
+
+    @for (int index = 0; index < Blocks.Count; index++)
+    {
+        int blockIndex = index;
+        FilterGroup group = Blocks[blockIndex];
+
+        <div class="filter-block">
+            @* Captioned only once there is more than one, so the simple case gains no chrome it does not need. *@
+            @if (Blocks.Count > 1)
+            {
+                <div class="block-head">
+                    <span class="block-index">@(blockIndex + 1)</span>
+                    <span class="block-title">Block @(blockIndex + 1) — all of</span>
+                    <div class="flex"></div>
+                    <button type="button" class="icon-btn remove-block" title="Remove this OR block"
+                            @onclick="() => RemoveBlock(group)"><i class="ph ph-trash"></i></button>
+                </div>
+            }
+
+            <div class="filter-groups" data-group="@blockIndex">
+                @foreach (IGrouping<string, FilterFieldSchema> card in Cards)
+                {
+                    <div class="group-card @(Wide(card) ? "wide" : null)">
+                        <div class="group-head">
+                            <span class="tick"></span>
+                            <span class="group-title">@card.Key</span>
+                            <span class="group-count">@card.Count()</span>
+                        </div>
+                        <div class="fields">
+                            @foreach (FilterFieldSchema field in card)
+                            {
+                                List<FilterCondition> rows = Rows(group, field);
+
+                                @for (int r = 0; r < rows.Count; r++)
+                                {
+                                    @Row(field, rows[r], group, first: r == 0)
+                                }
+
+                                @if (rows.Count == 0)
+                                {
+                                    @Row(field, null, group, first: true)
+                                }
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+
+        @if (blockIndex < Blocks.Count - 1)
+        {
+            <div class="or-divider"><span>OR</span></div>
+        }
+    }
+
+    <div class="filter-foot">
+        <button type="button" class="apply-btn" @onclick="Apply">
+            <i class="ph ph-funnel"></i>@ApplyLabel
+        </button>
+        <button type="button" class="outline-btn add-or-block" @onclick="AddBlock"
+                disabled="@(Blocks.Count >= FilterQuery.MaxGroups)">
+            <i class="ph ph-plus"></i>OR block
+        </button>
+        <span class="hint">Conditions in a block are combined with AND; blocks are combined with OR.</span>
+    </div>
+</div>
+
+@code {
+    [CascadingParameter] public ShellContext Ctx { get; set; }
+
+    [Parameter] public PaneDescriptor Descriptor { get; set; }
+    [Parameter] public PaneState Pane { get; set; }
+    [Parameter] public uint SpellId { get; set; }
+
+    /// <summary>The effect type an Effect Type spells pane is listing; null for every other kind.</summary>
+    [Parameter] public SpellEffectType? EffectType { get; set; }
+
+    [Parameter] public EventCallback Applied { get; set; }
+
+    /// <summary>Row count the current form would return, previewed on the apply button.</summary>
+    private int? _preview;
+
+    private string ApplyLabel => _preview.HasValue ? $"Apply & show {_preview.Value:n0} rows" : "Apply filter";
+
+    /// <summary>
+    /// What the badge cannot say. Five conditions across two blocks can return more rows than three in one,
+    /// so the header states the shape of the query alongside the count.
+    /// </summary>
+    private string Shape
+    {
+        get
+        {
+            int conditions = FilterChips.ActiveCount(Q, Schema);
+            if (conditions == 0)
+                return "";
+
+            int blocks = Blocks.Count(g => g.Conditions.Any(c => Schema?.Field(c.Field) is { } f && !f.IsBlank(c)));
+            return blocks > 1 ? $"{blocks} blocks · {conditions} conditions" : $"{conditions} conditions";
+        }
+    }
+
+    private FilterQuery Q => Pane.Filters;
+
+    private FilterSchema Schema => Ctx.Schemas?.For(Descriptor);
+
+    private IReadOnlyList<IGrouping<string, FilterFieldSchema>> Cards { get; set; } = [];
+
+    /// <summary>The blocks to draw. A query with none still shows one, which is today's single form.</summary>
+    private List<FilterGroup> Blocks
+    {
+        get
+        {
+            if (Q.Groups.Count == 0)
+                Q.Groups.Add(new FilterGroup());
+
+            return Q.Groups;
+        }
+    }
+
+    private bool ShowCommon => Q.Common.Conditions.Count > 0 || Q.Groups.Count > 1;
+
+    private List<FilterChip> _chips = [];
+    private readonly Debounce _previewDebounce = new(TimeSpan.FromMilliseconds(150));
+
+    protected override void OnParametersSet()
+    {
+        Cards = Schema?.Cards.ToList() ?? [];
+        _chips = FilterChips.For(Q, Schema);
+    }
+
+    protected override void OnInitialized() => _ = PreviewCount();
+
+    /// <summary>
+    /// Count what the form would return, debounced and off the render thread - the same projection the
+    /// apply itself runs, with the same arguments, so the number on the button is the number you get.
+    /// </summary>
+    private async Task PreviewCount()
+    {
+        await _previewDebounce.Run(
+            token =>
+            {
+                // Read after the pause, so the count answers the form as it now stands.
+                PaneDescriptor descriptor = Descriptor;
+                FilterQuery query = Q.Clone();
+                ISpellModel spell = Ctx.State.Spell(SpellId);
+
+                // The effect type has to travel too: without it the Effect Type spells pane previewed an
+                // empty grid and the button promised a row count the apply would not deliver.
+                SpellEffectType? effectType = EffectType;
+
+                return Task.Run(() => Ctx.Rows.Build(descriptor, query, spell, effectType), token);
+            },
+            data =>
+            {
+                _preview = data.Rows.Length;
+                StateHasChanged();
+            });
+    }
+
+    // ------------------------------------------------------------------ one condition row
+
+    /// <summary>
+    /// Above this many fields a card lays its fields out in columns rather than one per line.
+    /// </summary>
+    /// <remarks>
+    /// A generic game table contributes one field per column - Spell4 has over a hundred - and a single vertical list
+    /// of those is way too long.
+    /// </remarks>
+    private const int WideCardFields = 8;
+
+    private static bool Wide(IGrouping<string, FilterFieldSchema> card) => card.Count() > WideCardFields;
+
+    private List<FilterCondition> Rows(FilterGroup group, FilterFieldSchema field) =>
+        group.Conditions.Where(c => c.Field == field.Key).ToList();
+
+    /// <summary>
+    /// One control. <paramref name="condition"/> is null for a field the block does not constrain yet - the
+    /// row still renders, and typing into it is what creates the condition. Nothing empty is ever stored.
+    /// </summary>
+    private RenderFragment Row(FilterFieldSchema field, FilterCondition condition, FilterGroup group, bool first) =>
+        @* Keyed on the condition it edits. Without a key the diff matches these rows by position within a
+           compiler-assigned sequence, and rows built by one method share that sequence - so a row that
+           grows an operator control gets confused with the next field's row and writes a value into it. *@
+        @<label class="field @(first ? null : "condition-row")" data-field="@field.Key" title="@field.Label"
+                @key="(field.Key, condition)">
+            <span class="label">@(first ? field.Label : "")</span>
+
+            @* The control and its buttons share one wrapper so they wrap together onto a second line when
+               the card is narrow, rather than the buttons squeezing the value box down to nothing. *@
+            <span class="control">
+                @switch (field.Control)
+                {
+                    case FilterControlKind.Choice:
+                        <select value="@Value(condition)" data-field="@field.Key"
+                                @onchange="e => Set(field, condition, group, e.Value?.ToString())">
+                            @foreach (string option in field.Options)
+                            {
+                                <option value="@option">@option</option>
+                            }
+                        </select>
+                        break;
+
+                    case FilterControlKind.Flags:
+                        <div class="bits">
+                            @foreach ((string name, uint bit) in field.Bits)
+                            {
+                                <button type="button" class="bit @(HasBit(condition, bit) ? "on" : null)"
+                                        title="@name" @onclick="() => ToggleBit(field, condition, group, bit)">@name</button>
+                            }
+                        </div>
+                        break;
+
+                    case FilterControlKind.Toggle:
+                        <button type="button" class="toggle @(condition != null ? "on" : null)"
+                                @onclick="() => ToggleFlag(field, condition, group)">@(condition != null ? "on" : "off")</button>
+                        break;
+
+                    default:
+                        <input value="@Value(condition)" placeholder="@field.Placeholder"
+                               class="@(Invalid(field, condition) ? "invalid" : null)"
+                               @onchange="e => Set(field, condition, group, e.Value?.ToString())" />
+                        break;
+                }
+
+                @if (condition != null && field.AllowedOperators.Count > 1)
+                {
+                    <div class="segmented op">
+                        @foreach (FilterOperator op in field.AllowedOperators)
+                        {
+                            <button type="button" class="@(condition.Operator == op ? "on" : null)"
+                                    title="@op" @onclick="() => SetOperator(condition, op)">@OperatorLabel(op)</button>
+                        }
+                    </div>
+                }
+
+                @if (condition != null)
+                {
+                    <button type="button" class="icon-btn not @(condition.Negate ? "on" : null)"
+                            title="Negate this condition" @onclick="() => ToggleNegate(condition)">
+                        <i class="ph ph-exclamation-mark"></i>
+                    </button>
+                }
+
+                @if (first)
+                {
+                    <button type="button" class="icon-btn add-condition" title="Add another value for this field"
+                            @onclick="() => AddCondition(field, group)"><i class="ph ph-plus"></i></button>
+                }
+                else
+                {
+                    <button type="button" class="icon-btn remove-condition" title="Remove this condition"
+                            @onclick="() => RemoveCondition(condition)"><i class="ph ph-x"></i></button>
+                }
+
+                @if (condition != null && ShowCommon)
+                {
+                    bool common = Q.Common.Conditions.Contains(condition);
+
+                    <button type="button" class="icon-btn pin-common @(common ? "on" : null)"
+                            title="Apply this condition to every block"
+                            @onclick="() => TogglePin(condition, common)"><i class="ph ph-push-pin"></i></button>
+                }
+            </span>
+        </label>;
+
+    private static string Value(FilterCondition condition) => condition?.Value ?? "";
+
+    private static bool HasBit(FilterCondition condition, uint bit)
+    {
+        return condition != null && FilterValue.TryUInt(condition.Value, out uint value) && (value & bit) == bit;
+    }
+
+    /// <summary>
+    /// Flip one named bit of a mask. The condition still stores the assembled number, so a picked mask and a
+    /// typed one persist and compile identically.
+    /// </summary>
+    private void ToggleBit(FilterFieldSchema field, FilterCondition condition, FilterGroup group, uint bit)
+    {
+        uint value = condition != null && FilterValue.TryUInt(condition.Value, out uint current) ? current : 0;
+        value = (value & bit) == bit ? value & ~bit : value | bit;
+
+        // Clearing the last bit clears the constraint, as clearing any other control does.
+        Set(field, condition, group, value == 0 ? "" : $"0x{value:X}");
+    }
+
+    private bool Invalid(FilterFieldSchema field, FilterCondition condition) =>
+        condition != null && !field.IsValid(condition);
+
+    private static string OperatorLabel(FilterOperator op) => op switch
+    {
+        FilterOperator.AtLeast => "≥",
+        FilterOperator.AtMost  => "≤",
+        FilterOperator.MaskAll => "ALL",
+        FilterOperator.MaskAny => "ANY",
+        _                      => op.ToString()
+    };
+
+    // ------------------------------------------------------------------ edits
+
+    private void Set(FilterFieldSchema field, FilterCondition condition, FilterGroup group, string value)
+    {
+        value ??= "";
+
+        if (condition == null)
+        {
+            // Nothing typed into an empty control is still nothing - do not store a blank condition.
+            if (string.IsNullOrWhiteSpace(value) || value == FilterFieldSchema.Any)
+                return;
+
+            group.Conditions.Add(new FilterCondition
+            {
+                Field    = field.Key,
+                Operator = field.DefaultOperator,
+                Value    = value
+            });
+        }
+        else if (string.IsNullOrWhiteSpace(value) || value == FilterFieldSchema.Any)
+        {
+            // Clearing a control clears the constraint, which is what the chips row then stops showing.
+            Q.RemoveCondition(condition);
+        }
+        else
+        {
+            condition.Value = value;
+        }
+
+        Refresh();
+    }
+
+    private void ToggleFlag(FilterFieldSchema field, FilterCondition condition, FilterGroup group)
+    {
+        if (condition != null)
+        {
+            Q.RemoveCondition(condition);
+        }
+        else
+        {
+            group.Conditions.Add(new FilterCondition
+            {
+                Field    = field.Key,
+                Operator = FilterOperator.IsSet,
+
+                // The deprecated field selects deprecated spells, so the toggle starts negated - which is
+                // exactly the "hide deprecated" it replaces.
+                Negate   = field.Key == FilterFields.Deprecated
+            });
+        }
+
+        Refresh();
+    }
+
+    private void ToggleNegate(FilterCondition condition)
+    {
+        condition.Negate = !condition.Negate;
+        Refresh();
+    }
+
+    private void SetOperator(FilterCondition condition, FilterOperator op)
+    {
+        condition.Operator = op;
+        Refresh();
+    }
+
+    private void AddCondition(FilterFieldSchema field, FilterGroup group)
+    {
+        if (group.Conditions.Count >= FilterGroup.MaxConditions)
+            return;
+
+        group.Conditions.Add(new FilterCondition { Field = field.Key, Operator = field.DefaultOperator });
+        Refresh();
+    }
+
+    private void RemoveCondition(FilterCondition condition)
+    {
+        Q.RemoveCondition(condition);
+        Refresh();
+    }
+
+    private void TogglePin(FilterCondition condition, bool common)
+    {
+        if (common)
+            Q.MakeLocal(condition);
+        else
+            Q.MakeCommon(condition);
+
+        Refresh();
+    }
+
+    private void AddBlock()
+    {
+        Q.AddGroup();
+        Refresh();
+    }
+
+    private void RemoveBlock(FilterGroup group)
+    {
+        Q.Groups.Remove(group);
+        Refresh();
+    }
+
+    private void Clear(FilterChip chip)
+    {
+        chip.Clear?.Invoke();
+        Refresh();
+        Save();
+    }
+
+    private void ResetAll()
+    {
+        Q.Reset();
+        Refresh();
+    }
+
+    private void Refresh()
+    {
+        _chips = FilterChips.For(Q, Schema);
+        _ = PreviewCount();
+        Ctx.State.Notify();
+    }
+
+    /// <summary>
+    /// Persist the workspace. Called on apply and on a chip clear - the two points where the user has said
+    /// what they meant, rather than on every keystroke.
+    /// </summary>
+    private void Save() => Ctx.Store.Save();
+
+    private async Task Apply()
+    {
+        Q.Prune(Schema);
+
+        Pane.Mode = PaneMode.Rows;
+        await Applied.InvokeAsync();
+
+        Ctx.State.Notify();
+        Save();
+    }
+
+    public void Dispose() => _previewDebounce.Dispose();
+}

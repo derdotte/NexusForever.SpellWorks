@@ -1,6 +1,4 @@
-﻿using System.IO;
 using Microsoft.Extensions.Options;
-using Nexus.Archive;
 using NexusForever.SpellWorks.Core.Configuration;
 
 namespace NexusForever.SpellWorks.Core.Services
@@ -8,50 +6,69 @@ namespace NexusForever.SpellWorks.Core.Services
     public class ArchiveService : IArchiveService
     {
         private static readonly string[] localisationIndexes =
-        {
+        [
             "ClientDataEN.index",
             "ClientDataFR.index",
             "ClientDataDE.index"
-        };
+        ];
 
         /// <summary>
         /// Main client ClientData archive.
         /// </summary>
-        public Archive MainArchive { get; private set; }
+        public IArchiveReader MainArchive { get; private set; }
 
         /// <summary>
         /// Collection of client localisation archives.
         /// </summary>
-        public List<Archive> LocalisationArchives { get; } = [];
+        public IReadOnlyList<IArchiveReader> LocalisationArchives => localisationArchives;
+
+        /// <summary>
+        /// Folder the archives are read from.
+        /// </summary>
+        public string PatchPath { get; set; }
+
+        /// <summary>
+        /// Name of the mounted archive, or <c>null</c> when nothing has been read yet.
+        /// </summary>
+        public string ArchiveName { get; private set; }
+
+        private readonly List<IArchiveReader> localisationArchives = [];
 
         #region Dependency Injection
 
-        private readonly SpelllWorksConfiguration _options;
+        private readonly IArchiveMounter _mounter;
 
         public ArchiveService(
-            IOptions<SpelllWorksConfiguration> options)
+            IOptions<SpelllWorksConfiguration> options,
+            IArchiveMounter mounter)
         {
-            _options = options.Value;
+            _mounter  = mounter;
+            PatchPath = options.Value.PatchPath;
         }
 
         #endregion
 
         public Task Initialise()
         {
-            // CoreData archive only applicable to Steam client
-            ArchiveFile coreDataArchive = null;
-            if (File.Exists(Path.Combine(_options.PatchPath, "CoreData.archive")))
-                coreDataArchive = ArchiveFileBase.FromFile(Path.Combine(_options.PatchPath, "CoreData.archive")) as ArchiveFile;
+            localisationArchives.Clear();
+            ArchiveName = null;
+            MainArchive = null;
 
-            MainArchive = Archive.FromFile(Path.Combine(_options.PatchPath, "ClientData.index"), coreDataArchive);
+            // CoreData archive only applicable to Steam client.
+            string coreData = Path.Combine(PatchPath ?? "", "CoreData.archive");
+            if (!_mounter.Exists(coreData))
+                coreData = null;
 
-            foreach (string localisationArchivePath in localisationIndexes
-                .Select(i => Path.Combine(_options.PatchPath, i)))
+            MainArchive = _mounter.Mount(Path.Combine(PatchPath ?? "", "ClientData.index"), coreData);
+            ArchiveName = "ClientData.archive";
+
+            foreach (string index in localisationIndexes)
             {
-                if (!File.Exists(localisationArchivePath))
+                string path = Path.Combine(PatchPath ?? "", index);
+                if (!_mounter.Exists(path))
                     continue;
 
-                LocalisationArchives.Add(Archive.FromFile(localisationArchivePath, coreDataArchive));
+                localisationArchives.Add(_mounter.Mount(path, coreData));
             }
 
             return Task.CompletedTask;

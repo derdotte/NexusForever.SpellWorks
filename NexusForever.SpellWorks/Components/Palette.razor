@@ -1,0 +1,101 @@
+@implements IDisposable
+
+<div class="scrim fade" @onmousedown="() => Closed.InvokeAsync()">
+    <div class="palette" @onmousedown:stopPropagation="true">
+        <div class="palette-input">
+            <i class="ph ph-magnifying-glass"></i>
+            <input @ref="_input"
+                   value="@Query"
+                   @oninput="OnInput"
+                   placeholder="Jump to a view, game table or spell…" />
+            <span class="kbd">ESC</span>
+        </div>
+
+        <div class="palette-results">
+            @for (int i = 0; i < _results.Count; i++)
+            {
+                PaletteEntry entry = _results[i];
+                int index = i;
+                <button type="button"
+                        class="palette-result @(Cursor == index ? "cursor" : null)"
+                        @onclick="e => Run(entry, e.ShiftKey)"
+                        @onmouseenter="() => CursorChanged.InvokeAsync(index)">
+                    <i class="@entry.Icon"></i>
+                    <span class="label">@entry.Label</span>
+                    <span class="sub">@entry.Sub</span>
+                    <span class="pill">@entry.Kind</span>
+                </button>
+            }
+
+            @if (_results.Count == 0)
+            {
+                <div class="palette-none">Nothing matches &ldquo;@Query&rdquo;</div>
+            }
+        </div>
+
+        <div class="palette-hints">
+            <span>enter — open</span><span>shift+enter — pop out</span><span>⌘K / ctrl+K — toggle</span>
+        </div>
+    </div>
+</div>
+
+@code {
+    [CascadingParameter] public ShellContext Ctx { get; set; }
+
+    [Parameter] public PaletteIndex Index { get; set; }
+    [Parameter] public int Cursor { get; set; }
+    [Parameter] public EventCallback<int> CursorChanged { get; set; }
+    [Parameter] public EventCallback Closed { get; set; }
+
+    public string Query { get; private set; } = "";
+
+    private ElementReference _input;
+    private List<PaletteEntry> _results = [];
+
+    // Same 150 ms pause as the grid; the match itself runs off the render thread.
+    private readonly Debounce _debounce = new(TimeSpan.FromMilliseconds(150));
+
+    protected override void OnInitialized() => _results = Index.Search("");
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && Ctx?.Js != null)
+            await Ctx.Js.InvokeVoidAsync("focus", _input);
+    }
+
+    /// <summary>The top hit, or the one under the keyboard cursor.</summary>
+    public PaletteEntry Current => _results.ElementAtOrDefault(Cursor < 0 ? 0 : Cursor);
+
+    public int ResultCount => _results.Count;
+
+    private async Task OnInput(ChangeEventArgs e)
+    {
+        Query = e.Value?.ToString() ?? "";
+
+        await _debounce.Run(
+            token => Task.Run(() => Index.Search(Query), token),
+            async results =>
+            {
+                _results = results;
+                await CursorChanged.InvokeAsync(0);
+                StateHasChanged();
+            });
+    }
+
+    public async Task Run(PaletteEntry entry, bool popout)
+    {
+        if (entry == null)
+            return;
+
+        await Closed.InvokeAsync();
+
+        if (entry.Kind == "spell")
+            Ctx.OpenDetail(entry.SpellId, null, popout);
+        else if (entry.Kind == "effecttype" && entry.EffectType is { } type)
+            Ctx.OpenEffectTypeSpells(type, popout);
+        else
+            Ctx.Open(entry.ViewId, popout);
+    }
+
+    public void Dispose() => _debounce.Dispose();
+}

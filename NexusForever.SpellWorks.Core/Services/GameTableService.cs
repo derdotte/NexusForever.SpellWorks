@@ -1,5 +1,4 @@
 ﻿using System.IO;
-using Nexus.Archive;
 using NexusForever.GameTable;
 using NexusForever.GameTable.Model;
 
@@ -57,6 +56,7 @@ namespace NexusForever.SpellWorks.Core.Services
 
         public async Task Initialise(IProgress<EngineProgress> progress)
         {
+            count = 0;
             progress.Report(new EngineProgress("Loading Game Tables...", 0, 0, 32));
 
             Spell4 = await LoadGameTable<Spell4Entry>(progress, "Spell4.tbl");
@@ -99,10 +99,10 @@ namespace NexusForever.SpellWorks.Core.Services
             return Task.Run(() =>
             {
                 string filePath = Path.Combine("DB", name);
-                if (_archiveService.MainArchive.IndexFile.FindEntry(filePath) is not IArchiveFileEntry file)
-                    throw new FileNotFoundException();
+                if (_archiveService.MainArchive?.Find(filePath) is not IArchiveFile file)
+                    throw new FileNotFoundException($"{name} is not present in the archive.", filePath);
 
-                using Stream archiveStream = _archiveService.MainArchive.OpenFileStream(file);
+                using Stream archiveStream = file.Open();
                 using var memoryStream = new MemoryStream();
                 archiveStream.CopyTo(memoryStream);
                 memoryStream.Position = 0;

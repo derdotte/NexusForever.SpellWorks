@@ -1,4 +1,4 @@
-﻿using NexusForever.SpellWorks.Core.Static;
+using NexusForever.SpellWorks.Core.Static;
 
 namespace NexusForever.SpellWorks.Core.Models.Filter
 {
@@ -8,7 +8,8 @@ namespace NexusForever.SpellWorks.Core.Models.Filter
 
         public bool Filter(ISpellModel model)
         {
-            return (SpellTargetMechanicType?)model.SpellBaseModel?.TargetMechanics.TargetType == TargetMechanicType;
+            // Both hops are optional: the base row may be missing, and a base row may carry no mechanics row.
+            return (SpellTargetMechanicType?)model.SpellBaseModel?.TargetMechanics?.TargetType == TargetMechanicType;
         }
     }
 }

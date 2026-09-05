@@ -1,4 +1,4 @@
-﻿namespace NexusForever.SpellWorks.Core.Models.Filter
+namespace NexusForever.SpellWorks.Core.Models.Filter
 {
     public class SpellModelDescriptionFilter : ISpellModelFilter
     {
@@ -6,10 +6,11 @@
 
         public bool Filter(ISpellModel model)
         {
-            if (Description != null && !model.Description.Contains(Description, StringComparison.InvariantCultureIgnoreCase))
-                return false;
+            if (string.IsNullOrEmpty(Description))
+                return true;
 
-            return true;
+            // A spell with no description cannot contain anything - guarded here as the search filter does.
+            return model.Description?.Contains(Description, StringComparison.InvariantCultureIgnoreCase) ?? false;
         }
     }
 }

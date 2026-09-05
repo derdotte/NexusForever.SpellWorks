@@ -7,7 +7,9 @@ namespace NexusForever.SpellWorks.Core.Models
 {
     public class SpellEffectModel : ISpellEffectModel
     {
+        public Spell4EffectsEntry Entry => _entry;
         public SpellEffectType Type => _entry.EffectType;
+        public uint TargetFlags => _entry.TargetFlags;
         public uint DamageType => (uint)_entry.DamageType;
         public uint DelayTime => _entry.DelayTime;
         public uint TickTime => _entry.TickTime;

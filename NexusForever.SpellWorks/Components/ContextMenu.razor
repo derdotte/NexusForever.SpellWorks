@@ -1,0 +1,70 @@
+﻿@implements IDisposable
+
+@if (Model != null)
+{
+    <div class="menu fade" @ref="_element"
+         style="left:@(Model.X.ToString(Culture))px;top:@(Model.Y.ToString(Culture))px;visibility:@(Model.Placed ? "visible" : "hidden")"
+         @onmousedown:stopPropagation="true"
+         @oncontextmenu:preventDefault="true"
+         @oncontextmenu:stopPropagation="true">
+        <div class="menu-head">
+            <div class="title">@Model.Title</div>
+            <div class="sub">@Model.Sub</div>
+        </div>
+        <div class="menu-items">
+            @for (int i = 0; i < Model.Items.Count; i++)
+            {
+                MenuItem item = Model.Items[i];
+                int index = i;
+                <button type="button"
+                        class="menu-item @(Model.Cursor == index ? "cursor" : null)"
+                        @onclick="() => Invoke(item)"
+                        @onmouseenter="() => Model.Cursor = index">
+                    <i class="@item.Icon"></i>@item.Label
+                    <span class="flex"></span>
+                    <span class="hint">@item.Hint</span>
+                </button>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    private static readonly System.Globalization.CultureInfo Culture = System.Globalization.CultureInfo.InvariantCulture;
+
+    [CascadingParameter] public ShellContext Ctx { get; set; }
+
+    [Parameter] public ContextMenuModel Model { get; set; }
+    [Parameter] public EventCallback Closed { get; set; }
+
+    private ElementReference _element;
+    private ContextMenuModel _placedModel;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Clamping is ours now - the browser will happily paint a menu off-screen.
+        if (Model == null || Model.Placed || Ctx?.Js == null || ReferenceEquals(_placedModel, Model))
+            return;
+
+        _placedModel = Model;
+
+        var size = await Ctx.Js.InvokeAsync<Size>("measure", _element);
+        var position = await Ctx.Js.InvokeAsync<Point>("menuPosition", Model.X, Model.Y, size.Width, size.Height);
+
+        Model.X = position.X;
+        Model.Y = position.Y;
+        Model.Placed = true;
+
+        StateHasChanged();
+    }
+
+    private async Task Invoke(MenuItem item)
+    {
+        item.Invoke();
+        await Closed.InvokeAsync();
+    }
+
+    public void Dispose() => _placedModel = null;
+
+
+}

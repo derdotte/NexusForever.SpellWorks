@@ -1,5 +1,9 @@
 namespace NexusForever.SpellWorks.Core.Static
 {
+    /// <summary>
+    /// The <c>Flags</c> bitmask on a <c>Spell4TargetMechanics</c> row.
+    /// </summary>
+    [Flags]
     public enum SpellTargetMechanicFlags
     {
         None               = 0x0000,

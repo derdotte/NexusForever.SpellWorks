@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection;
 using NexusForever.GameTable.Model;
 using NexusForever.Game.Static.Spell;
 using NexusForever.SpellWorks.Core.Models;
@@ -12,6 +12,7 @@ namespace NexusForever.SpellWorks.Core.Services
         public Dictionary<uint, List<ISpellEffectModel>> SpellEffectModels { get; } = [];
         public Dictionary<uint, List<ISpellProcModel>> SpellProcModels { get; } = [];
         public Dictionary<uint, List<uint>> SpellProcReferences { get; } = [];
+        public Dictionary<SpellEffectType, EffectTypeUsage> EffectTypeUsages { get; } = [];
 
         #region Dependency Injection
 
@@ -28,9 +29,24 @@ namespace NexusForever.SpellWorks.Core.Services
 
         #endregion
 
+        /// <summary>
+        /// Clear every model dictionary ahead of a reload. The dictionaries themselves are never reassigned.
+        /// </summary>
+        public void Reset()
+        {
+            SpellBaseModels.Clear();
+            SpellModels.Clear();
+            SpellEffectModels.Clear();
+            SpellProcModels.Clear();
+            SpellProcReferences.Clear();
+            EffectTypeUsages.Clear();
+        }
+
         public Task Initialise(IProgress<EngineProgress> progress)
         {
             progress.Report(new EngineProgress("Loading Spell Models..."));
+
+            Reset();
 
             InitialiseBaseSpellModels();
             InitialiseSpellEffectModels();
@@ -62,8 +78,17 @@ namespace NexusForever.SpellWorks.Core.Services
             }
         }
 
+        /// <summary>
+        /// Build the per-spell effect lists and, in the same pass, the reverse index from effect type back to
+        /// the spells using it. There are over 100k effect rows, so the reverse index rides along here rather than
+        /// walking the table a second time.
+        /// </summary>
         private void InitialiseSpellEffectModels()
         {
+            // Spell ids are collected in a set because a spell may carry several effects of one type and must
+            // still count once; the row tally alongside it is what counts them all.
+            Dictionary<SpellEffectType, (HashSet<uint> Spells, int Rows)> usage = [];
+
             foreach (var spellEffectsBySpellId in _gameTableService.Spell4Effects.Entries
                 .GroupBy(e => e.SpellId))
             {
@@ -75,7 +100,23 @@ namespace NexusForever.SpellWorks.Core.Services
                     var model = _serviceProvider.GetService<ISpellEffectModel>();
                     model.Initialise(entry);
                     effectList.Add(model);
+
+                    if (!usage.TryGetValue(entry.EffectType, out (HashSet<uint> Spells, int Rows) counts))
+                        counts = ([], 0);
+
+                    counts.Spells.Add(entry.SpellId);
+                    usage[entry.EffectType] = (counts.Spells, counts.Rows + 1);
                 }
+            }
+
+            foreach ((SpellEffectType type, (HashSet<uint> spells, int rows)) in usage)
+            {
+                EffectTypeUsages.Add(type, new EffectTypeUsage
+                {
+                    Type           = type,
+                    SpellIds       = [.. spells.Order()],
+                    EffectRowCount = rows
+                });
             }
         }
 
