@@ -1,8 +1,10 @@
 using System.Collections.Concurrent;
 using NexusForever.Game.Static.Entity;
+using NexusForever.GameTable.Model;
 using NexusForever.Game.Static.Spell;
 using NexusForever.SpellWorks.Core.Models;
 using NexusForever.SpellWorks.Core.Models.Filter;
+using NexusForever.SpellWorks.Core.Models.Filter.Column;
 using NexusForever.SpellWorks.Core.Models.Filter.Effect;
 using NexusForever.SpellWorks.Core.Models.Filter.EffectType;
 using NexusForever.SpellWorks.Core.Models.Filter.Numeric;
@@ -82,7 +84,7 @@ namespace NexusForever.SpellWorks.Services.Filtering
 
         // ------------------------------------------------------------------ spells
 
-        private static FilterSchema<ISpellModel> BuildSpell()
+        private FilterSchema<ISpellModel> BuildSpell()
         {
             const string general    = "Base · General";
             const string mechanic   = "Target Mechanic";
@@ -126,9 +128,13 @@ namespace NexusForever.SpellWorks.Services.Filtering
                 Flags<ISpellModel, SpellEffectTargetFlags>(FilterFields.EffectTargetFlags, "Target Flags", effects,
                     (v, mode) => new SpellModelEffectTargetFlagsFilter { Flags = v, Mode = mode }),
 
-                // Phrased positively; the form seeds this one negated, which is the old "hide deprecated".
+                // Both phrased positively; the form seeds them negated, which is the old "hide deprecated"
+                // and its equivalent for the placeholder spells.
                 Toggle<ISpellModel>(FilterFields.Deprecated, "Deprecated", housekeeping,
-                    _ => new SpellModelDeprecatedFilter()),
+                    _ => new SpellModelDeprecatedFilter(), seedNegated: true),
+
+                Toggle<ISpellModel>(FilterFields.TestSpell, "Test", housekeeping,
+                    _ => new SpellModelTestFilter(), seedNegated: true),
 
                 Toggle<ISpellModel>(FilterFields.HasProcs, "Has procs", housekeeping,
                     _ => new SpellModelHasProcsFilter()),
@@ -154,12 +160,62 @@ namespace NexusForever.SpellWorks.Services.Filtering
             (term, exact) => new SpellModelTextSearchFilter { Query = term, Exact = exact },
             "Search description or name…",
             (term, exact) => new SpellModelIdSearchFilter { Query = term, Exact = exact },
-            "Spell id…");
+            "Spell id…",
+            SpellFlexSources());
+        }
+
+        /// <summary>
+        /// The linked rows a spell can be filtered by column on: its own <c>Spell4</c> row, its
+        /// <c>Spell4Base</c>, its effect rows, and the rows the base itself points at.
+        /// </summary>
+        /// <remarks>
+        /// This is what the hand-written fields above cannot scale to. Those tables carry a hundred columns
+        /// each and only a few dozen are worth a named field, so the rest arrive here - one card per row,
+        /// one row per constraint, the column picked rather than declared.
+        ///
+        /// <c>CastGroup</c>, <c>PositionalAoe</c> and <c>AoeGroup</c> are absent because
+        /// <c>SpellBaseModel.Initialise</c> leaves them unresolved - their tables are not loaded, so a card
+        /// for them would offer columns that no spell could ever answer.
+        /// </remarks>
+        private IReadOnlyList<FilterFlexSource<ISpellModel>> SpellFlexSources()
+        {
+            return
+            [
+                Flex<ISpellModel, Spell4Entry>(FilterFields.SpellSource, "Spell4",
+                    m => [m.Entry]),
+
+                Flex<ISpellModel, Spell4BaseEntry>(FilterFields.BaseSource, "Base",
+                    m => [m.SpellBaseModel?.Entry]),
+
+                Flex<ISpellModel, Spell4EffectsEntry>(FilterFields.EffectsSource, "Effects",
+                    m => m.Effects.Select(effect => (object)effect.Entry)),
+
+                Flex<ISpellModel, Spell4HitResultsEntry>(FilterFields.HitResultSource,
+                    "Hit results", m => [m.SpellBaseModel?.HitResult]),
+
+                Flex<ISpellModel, Spell4TargetMechanicsEntry>(FilterFields.TargetMechanicsSource,
+                    "Target mechanics", m => [m.SpellBaseModel?.TargetMechanics]),
+
+                Flex<ISpellModel, Spell4TargetAngleEntry>(FilterFields.TargetAngleSource,
+                    "Target angle", m => [m.SpellBaseModel?.TargetAngle]),
+
+                Flex<ISpellModel, Spell4PrerequisitesEntry>(FilterFields.PrerequisitesSource,
+                    "Prerequisites", m => [m.SpellBaseModel?.Prerequisites]),
+
+                Flex<ISpellModel, Spell4ValidTargetsEntry>(FilterFields.ValidTargetsSource,
+                    "Valid targets", m => [m.SpellBaseModel?.ValidTargets]),
+
+                Flex<ISpellModel, Spell4BaseEntry>(FilterFields.PrerequisiteSpellSource,
+                    "Prerequisite spell", m => [m.SpellBaseModel?.PrerequisiteSpell]),
+
+                Flex<ISpellModel, Spell4SpellTypesEntry>(FilterFields.SpellTypeSource,
+                    "Spell type", m => [m.SpellBaseModel?.SpellType])
+            ];
         }
 
         // ------------------------------------------------------------------ effects
 
-        private static FilterSchema<ISpellEffectModel> BuildEffects()
+        private FilterSchema<ISpellEffectModel> BuildEffects()
         {
             const string effect     = "Effect";
             const string timing     = "Timing";
@@ -240,7 +296,11 @@ namespace NexusForever.SpellWorks.Services.Filtering
             (term, exact) => new SpellEffectNameSearchFilter { Query = term, Exact = exact },
             "Search effect type…",
             (term, exact) => new SpellEffectIdSearchFilter { Query = term, Exact = exact },
-            "Type id…");
+            "Type id…",
+            [
+                Flex<ISpellEffectModel, Spell4EffectsEntry>(FilterFields.EffectRowSource,
+                    "Effect row", m => [m.Entry])
+            ]);
         }
 
         /// <summary>
@@ -306,7 +366,12 @@ namespace NexusForever.SpellWorks.Services.Filtering
             },
             "Search description…",
             (term, exact) => new SpellProcIdSearchFilter { Query = term, Exact = exact },
-            "Spell id…");
+            "Spell id…",
+            [
+                // A proc is a Spell4Effects row read a different way, so the card offers that row's columns.
+                Flex<ISpellProcModel, Spell4EffectsEntry>(FilterFields.ProcRowSource,
+                    "Effect row", m => [m.Entry])
+            ]);
         }
 
         private string DescriptionOf(uint spellId)
@@ -442,6 +507,123 @@ namespace NexusForever.SpellWorks.Services.Filtering
             return -1;
         }
 
+        // ------------------------------------------------------------------ flex sources
+
+        /// <summary>
+        /// A card offering every column of <typeparamref name="TEntry"/>, reached from the element by
+        /// <paramref name="rows"/>.
+        /// </summary>
+        /// <remarks>
+        /// The columns come from <see cref="ITableCatalog.Columns"/>, which compiles one accessor per column
+        /// per entry type - so a card costs one reflection pass over a type the catalog has usually walked
+        /// already, and evaluating a condition costs a delegate call.
+        ///
+        /// Which operators a column offers is decided here, from the column's type: a number is asked for a threshold,
+        /// anything else for a substring. A column with no accessible columns at all - a type the catalog cannot
+        /// walk - yields an empty card rather than a broken one.
+        /// </remarks>
+        private FilterFlexSource<T> Flex<T, TEntry>(
+            string key, string name, Func<T, IEnumerable<object>> rows)
+        {
+            IReadOnlyList<GameTableColumn> columns = _tableCatalog?.Columns(typeof(TEntry)) ?? [];
+
+            // The card is titled from the row's name rather than the other way round, so a column can
+            // qualify its own label with that name instead of parsing it back out of a card heading.
+            string title = $"{name} · any column";
+
+            return new FilterFlexSource<T>(key, title, rows,
+                [.. columns.Select(column => Column(key, name, title, column))]);
+        }
+
+        private static FilterColumnFieldSchema Column(
+            string source, string name, string title, GameTableColumn column)
+        {
+            return new FilterColumnFieldSchema
+            {
+                Key              = FilterFields.Flex(source, column.Name),
+                Label            = column.Name,
+                GroupTitle       = title,
+                Source           = source,
+                SourceName       = name,
+                Control          = FilterControlKind.Text,
+                Placeholder      = column.IsNumeric ? "value" : "text",
+                AllowedOperators = Operators(column),
+                RowFactory       = column.IsNumeric ? Number(column) : Text(column)
+            };
+        }
+
+        /// <summary>
+        /// What a column can be asked. A number gets the comparisons; everything else - a string, an array,
+        /// a bool, an enum - gets the two text readings, since its rendered form is all it shares.
+        /// </summary>
+        /// <remarks>
+        /// The two mask readings ride along on whole-number columns because these tables pack bitfields into
+        /// ordinary integer columns as readily as they hold counts - <c>Flags</c> and <c>DataBits00</c> being
+        /// the obvious cases - and the curated <c>SpellEffectDataBitsFilter</c> already offers exactly this
+        /// pair. A float column gets no mask: there are no bits there to mean anything.
+        /// </remarks>
+        private static IReadOnlyList<FilterOperator> Operators(GameTableColumn column)
+        {
+            if (!column.IsNumeric)
+                return [FilterOperator.Contains, FilterOperator.Equals];
+
+            return Integral(column.Type)
+                ? [FilterOperator.Equals, FilterOperator.AtLeast, FilterOperator.AtMost,
+                   FilterOperator.MaskAll, FilterOperator.MaskAny]
+                : [FilterOperator.Equals, FilterOperator.AtLeast, FilterOperator.AtMost];
+        }
+
+        private static bool Integral(Type type) => Type.GetTypeCode(type)
+            is TypeCode.SByte or TypeCode.Byte or TypeCode.Int16 or TypeCode.UInt16
+            or TypeCode.Int32 or TypeCode.UInt32 or TypeCode.Int64 or TypeCode.UInt64;
+
+        private static Func<FilterCondition, IModelFilter<object>> Number(GameTableColumn column)
+        {
+            return c => TryValue(c.Value, out double value)
+                ? new ColumnNumberFilter { Read = column.Number, Value = value, Match = Number(c.Operator) }
+                : null;
+        }
+
+        /// <summary>
+        /// Read what was typed into a numeric column's box.
+        /// </summary>
+        /// <remarks>
+        /// A whole number first, which is also what accepts <c>0x</c> hex - these columns pack bitfields as
+        /// readily as they hold counts, and the mask operators are unusable without it. Anything else falls
+        /// through to the ordinary parse, which is what a threshold on a float column needs. Trying both
+        /// rather than branching on the operator means a hex value keeps its meaning when the row is
+        /// switched from ALL to =, instead of silently becoming unparseable.
+        /// </remarks>
+        private static bool TryValue(string text, out double value)
+        {
+            if (FilterValue.TryUInt(text, out uint whole))
+            {
+                value = whole;
+                return true;
+            }
+
+            return FilterValue.TryNumber(text, out value);
+        }
+
+        private static NumberMatch Number(FilterOperator op) => op switch
+        {
+            FilterOperator.AtLeast => NumberMatch.AtLeast,
+            FilterOperator.AtMost  => NumberMatch.AtMost,
+            FilterOperator.MaskAll => NumberMatch.MaskAll,
+            FilterOperator.MaskAny => NumberMatch.MaskAny,
+            _                      => NumberMatch.Equals
+        };
+
+        private static Func<FilterCondition, IModelFilter<object>> Text(GameTableColumn column)
+        {
+            return c => new ColumnTextFilter
+            {
+                Read  = column.Text,
+                Query = FilterValue.Trimmed(c.Value),
+                Exact = c.Operator == FilterOperator.Equals
+            };
+        }
+
         // ------------------------------------------------------------------ field constructors
 
         private static FilterFieldSchema<T> Text<T>(
@@ -569,8 +751,13 @@ namespace NexusForever.SpellWorks.Services.Filtering
                 (v, atMost) => new TFilter { Value = v, AtMost = atMost });
         }
 
+        /// <summary>
+        /// A bare on/off constraint. <paramref name="seedNegated"/> marks the ones whose useful reading is
+        /// the negative one, so the form starts them denied rather than asserted.
+        /// </summary>
         private static FilterFieldSchema<T> Toggle<T>(
-            string key, string label, string card, Func<FilterCondition, IModelFilter<T>> factory)
+            string key, string label, string card, Func<FilterCondition, IModelFilter<T>> factory,
+            bool seedNegated = false)
         {
             return new FilterFieldSchema<T>
             {
@@ -579,6 +766,7 @@ namespace NexusForever.SpellWorks.Services.Filtering
                 GroupTitle       = card,
                 Control          = FilterControlKind.Toggle,
                 AllowedOperators = [FilterOperator.IsSet],
+                SeedNegated      = seedNegated,
                 Factory          = factory
             };
         }

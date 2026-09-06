@@ -4,7 +4,9 @@
 @* In a pop-out the window's own title bar carries the icon, title, meta and Data/Filter control. *@
 @if (!Ctx.IsPopout)
 {
-    <div class="pane-head">
+    @* The header is what a view has instead of a tab in a split layout, and its x is the only way to
+       close one there - so it answers the same middle click the tab strip does. *@
+    <div class="pane-head" @onmouseup="MiddleClose">
         <i class="@Descriptor.Icon"></i>
         <span class="pane-title" title="@Descriptor.Title">@Descriptor.Title</span>
         <span class="pane-meta" title="@Meta">@Meta</span>
@@ -88,6 +90,21 @@ else
 
 @code {
     [CascadingParameter] public ShellContext Ctx { get; set; }
+
+    /// <summary>
+    /// Close this view on a middle click of its header, as the tab strip closes a tab.
+    /// </summary>
+    /// <remarks>
+    /// By <c>Descriptor.Id</c> rather than <c>Scope</c>, as the header's own x is: a pop-out's scope is
+    /// its window key, and the header is not drawn there at all.
+    /// </remarks>
+    private void MiddleClose(MouseEventArgs e)
+    {
+        if (e.Button != 1)
+            return;
+
+        Ctx.State.CloseView(Descriptor.Id);
+    }
 
     [Parameter] public PaneDescriptor Descriptor { get; set; }
 

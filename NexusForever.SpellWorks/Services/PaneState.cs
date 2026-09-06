@@ -1,4 +1,4 @@
-using NexusForever.Game.Static.Spell;
+﻿using NexusForever.Game.Static.Spell;
 using NexusForever.SpellWorks.Services.Filtering;
 
 namespace NexusForever.SpellWorks.Services
@@ -34,6 +34,20 @@ namespace NexusForever.SpellWorks.Services
         public FilterQuery Filters { get; } = new();
 
         /// <summary>Set while this pane is locked to a spell; other panes keep navigating.</summary>
+        /// <summary>
+        /// The flex columns this pane has promoted to fields of their own, in promotion order.
+        /// </summary>
+        /// <remarks>
+        /// Field keys, not conditions. A promotion says <em>where a row is drawn</em> - a labelled field
+        /// at the top of every block rather than a line in the column picker's card - and never what the
+        /// query means, so promoting and demoting leaves every condition exactly where it was and is
+        /// lossless both ways.
+        ///
+        /// Get-only and mutated in place, as <see cref="Filters"/> is: the form holds references to it
+        /// across renders, so it is rehydrated rather than replaced.
+        /// </remarks>
+        public List<string> Promoted { get; } = [];
+
         public uint? LockedSpellId { get; set; }
 
         public DetailSubTab SubTab { get; set; } = DetailSubTab.Effects;

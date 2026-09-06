@@ -5,14 +5,14 @@ namespace NexusForever.SpellWorks.Core.Models
 {
     public class SpellProcModel : ISpellProcModel
     {
-        public ProcType ProcType => (ProcType)_entry.DataBits00;
-        public uint SpellId => _entry.DataBits01;
+        public Spell4EffectsEntry Entry { get; private set; }
 
-        private Spell4EffectsEntry _entry;
+        public ProcType ProcType => (ProcType)Entry.DataBits00;
+        public uint SpellId => Entry.DataBits01;
 
         public void Initialise(Spell4EffectsEntry entry)
         {
-            _entry = entry;
+            Entry = entry;
         }
     }
 }

@@ -111,6 +111,12 @@
                                 @onclick="() => SetPreference(() => set(!get()))">@(get() ? "on" : "off")</button>
                     </label>
                 }
+
+                <div class="setup-foot">
+                    <button type="button" class="revert-btn clear-promoted" @onclick="ClearPromoted"
+                            disabled="@(PromotedCount == 0)">Clear promoted flex filters</button>
+                    <span class="note promoted-count">@PromotedCount promoted across all panes</span>
+                </div>
             </div>
         </div>
     </div>
@@ -288,8 +294,35 @@
         ("Load on start", () => Prefs.LoadOnStart, v => Prefs.LoadOnStart = v),
         ("Restore windows", () => Prefs.RestoreWindows, v => Prefs.RestoreWindows = v),
         ("Monospace ids", () => Prefs.MonospaceIds, v => Prefs.MonospaceIds = v),
-        ("Rail labels", () => Prefs.RailLabels, v => Prefs.RailLabels = v)
+        ("Rail labels", () => Prefs.RailLabels, v => Prefs.RailLabels = v),
+
+        // Appended rather than inserted: the order is what the form draws, and a preference that moves
+        // is one every reader has to find again.
+        ("Persist filters on start", () => Prefs.RestoreFilters, v => Prefs.RestoreFilters = v),
+        ("Persist promoted flex filters", () => Prefs.RestorePromoted, v => Prefs.RestorePromoted = v)
     ];
+
+    /// <summary>
+    /// Forget every promoted flex column, on every pane.
+    /// </summary>
+    /// <remarks>
+    /// The filters themselves are cleared from the form they belong to, one pane at a time. Promotions
+    /// are not: they are the shape of that form rather than a constraint in it, so the only place they
+    /// can all be dropped at once is here.
+    ///
+    /// Conditions are left alone. A promoted column's constraints are ordinary conditions on an ordinary
+    /// key, so they come back under the column picker rather than disappearing with the promotion.
+    /// </remarks>
+    private void ClearPromoted()
+    {
+        SetPreference(() =>
+        {
+            foreach (PaneState pane in Ctx.State.PaneStates.Values)
+                pane.Promoted.Clear();
+        });
+    }
+
+    private int PromotedCount => Ctx.State.PaneStates.Values.Sum(pane => pane.Promoted.Count);
 
     /// <summary>
     /// Only the locales actually present in the mounted archives - a locale with no text table would

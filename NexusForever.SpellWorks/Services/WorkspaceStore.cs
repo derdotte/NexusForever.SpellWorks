@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using NexusForever.SpellWorks.Services.Filtering;
@@ -27,9 +27,34 @@ namespace NexusForever.SpellWorks.Services
             [System.Text.Json.Serialization.JsonIgnore(
                 Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
             public Dictionary<string, FilterQueryDto> Filters { get; set; }
+
+            /// <summary>Per-pane promoted flex columns, keyed by pane scope as the filters are.</summary>
+            /// <remarks>
+            /// Its own section rather than a member of the filter DTO, because the two are governed by
+            /// their own preferences: a user can keep their promoted fields while starting clean.
+            /// </remarks>
+            [System.Text.Json.Serialization.JsonIgnore(
+                Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+            public Dictionary<string, List<string>> Promoted { get; set; }
         }
 
         private static readonly JsonSerializerOptions options = new() { WriteIndented = true };
+
+        /// <summary>
+        /// The sections the last <see cref="Load"/> declined to read, because the preference governing
+        /// them was off.
+        /// </summary>
+        /// <remarks>
+        /// Kept so that saving from a session which started clean preserves them instead of writing the
+        /// file back with nothing in their place. The switch governs what is <em>applied</em>, never what
+        /// is kept - a setting that quietly deleted a user's saved work the first time the app wrote its
+        /// workspace would be the one setting nobody could risk trying.
+        ///
+        /// They are pruned against the live scopes on the way out exactly as the live state is, so a
+        /// session that started clean writes the same file a session that loaded would have.
+        /// </remarks>
+        private Dictionary<string, FilterQueryDto> _unreadFilters;
+        private Dictionary<string, List<string>> _unreadPromoted;
 
         private readonly string _workspacePath;
         private readonly string _configurationPath;
@@ -112,18 +137,31 @@ namespace NexusForever.SpellWorks.Services
 
             if (snapshot.Preferences != null)
             {
-                _state.Preferences.Locale         = snapshot.Preferences.Locale;
-                _state.Preferences.LoadOnStart    = snapshot.Preferences.LoadOnStart;
-                _state.Preferences.RestoreWindows = snapshot.Preferences.RestoreWindows;
-                _state.Preferences.MonospaceIds   = snapshot.Preferences.MonospaceIds;
-                _state.Preferences.RailLabels     = snapshot.Preferences.RailLabels;
+                _state.Preferences.Locale          = snapshot.Preferences.Locale;
+                _state.Preferences.LoadOnStart     = snapshot.Preferences.LoadOnStart;
+                _state.Preferences.RestoreWindows  = snapshot.Preferences.RestoreWindows;
+                _state.Preferences.MonospaceIds    = snapshot.Preferences.MonospaceIds;
+                _state.Preferences.RailLabels      = snapshot.Preferences.RailLabels;
+                _state.Preferences.RestoreFilters  = snapshot.Preferences.RestoreFilters;
+                _state.Preferences.RestorePromoted = snapshot.Preferences.RestorePromoted;
             }
 
             if (snapshot.ColumnWidths != null)
                 foreach ((string viewId, Dictionary<string, int> widths) in snapshot.ColumnWidths)
                     _state.ColumnWidths[viewId] = new Dictionary<string, int>(widths);
 
-            LoadFilters(snapshot.Filters);
+            // Read after the preferences block above, so the switch that governs these is the one the file
+            // carries rather than the default it was constructed with. Both gate the load and not the
+            // save: the sections stay in the file, ready for the switch to be turned back on.
+            if (_state.Preferences.RestoreFilters)
+                LoadFilters(snapshot.Filters);
+            else
+                _unreadFilters = snapshot.Filters;
+
+            if (_state.Preferences.RestorePromoted)
+                LoadPromoted(snapshot.Promoted);
+            else
+                _unreadPromoted = snapshot.Promoted;
 
             RestorablePopouts = snapshot.Popouts ?? [];
         }
@@ -144,7 +182,8 @@ namespace NexusForever.SpellWorks.Services
                     e => e.Key,
                     e => new Dictionary<string, int>(e.Value)),
 
-                Filters = SaveFilters()
+                Filters = SaveFilters(),
+                Promoted = SavePromoted()
             };
 
             TryWrite(_workspacePath, JsonSerializer.Serialize(snapshot, options));
@@ -160,12 +199,7 @@ namespace NexusForever.SpellWorks.Services
         /// </remarks>
         private Dictionary<string, FilterQueryDto> SaveFilters()
         {
-            HashSet<string> live =
-            [
-                .. _state.Open,
-                .. _state.Pinned,
-                .. _state.Popouts.Select(p => p.ViewId)
-            ];
+            HashSet<string> live = LiveScopes();
 
             Dictionary<string, FilterQueryDto> filters = [];
 
@@ -178,7 +212,79 @@ namespace NexusForever.SpellWorks.Services
                     filters[scope] = dto;
             }
 
+            // A pane this session never filtered keeps whatever the file already held for it. The live
+            // one wins where there is both: the user filtering a pane is them saying what it should be.
+            foreach ((string scope, FilterQueryDto dto) in _unreadFilters ?? [])
+                if (live.Contains(scope) && !filters.ContainsKey(scope))
+                    filters[scope] = dto;
+
             return filters.Count > 0 ? filters : null;
+        }
+
+        /// <summary>The scopes a pane is still reachable through, and so still worth persisting.</summary>
+        private HashSet<string> LiveScopes() =>
+        [
+            .. _state.Open,
+            .. _state.Pinned,
+            .. _state.Popouts.Select(p => p.ViewId)
+        ];
+
+        /// <summary>
+        /// The promoted flex columns of every pane still worth remembering.
+        /// </summary>
+        /// <remarks>
+        /// Pruned to live scopes exactly as <see cref="SaveFilters"/> is, and for the same reason: a
+        /// <c>detail:7</c> the user opened once should not leave a promotion behind forever.
+        /// </remarks>
+        private Dictionary<string, List<string>> SavePromoted()
+        {
+            HashSet<string> live = LiveScopes();
+
+            Dictionary<string, List<string>> promoted = [];
+
+            foreach ((string scope, PaneState pane) in _state.PaneStates)
+            {
+                if (!live.Contains(scope) || pane.Promoted.Count == 0)
+                    continue;
+
+                promoted[scope] = [.. pane.Promoted];
+            }
+
+            foreach ((string scope, List<string> keys) in _unreadPromoted ?? [])
+                if (live.Contains(scope) && !promoted.ContainsKey(scope))
+                    promoted[scope] = keys;
+
+            return promoted.Count > 0 ? promoted : null;
+        }
+
+        private void LoadPromoted(Dictionary<string, List<string>> promoted)
+        {
+            if (promoted == null || _schemas == null)
+                return;
+
+            foreach ((string scope, List<string> keys) in promoted)
+            {
+                // Per scope, as the filters are: one unreadable entry costs its own pane and no more.
+                try
+                {
+                    FilterSchema schema = _schemas.For(_state.Describe(scope));
+                    if (schema == null)
+                        continue;
+
+                    PaneState pane = _state.PaneStateFor(scope);
+                    pane.Promoted.Clear();
+
+                    // A column the archive no longer carries is dropped rather than kept: unlike a value
+                    // that no longer parses there is nothing left to render or repair, which is the same
+                    // stance FilterQueryDtoMapper takes on an unknown field key.
+                    foreach (string key in (keys ?? []).Distinct())
+                        if (schema.Field(key) is FilterColumnFieldSchema)
+                            pane.Promoted.Add(key);
+                }
+                catch (Exception)
+                {
+                }
+            }
         }
 
         private void LoadFilters(Dictionary<string, FilterQueryDto> filters)

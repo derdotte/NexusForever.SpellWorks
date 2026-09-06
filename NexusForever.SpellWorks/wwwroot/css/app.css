@@ -966,8 +966,12 @@ a:hover { color: var(--accent-text); }
 .field > span.label { flex: none; width: 82px; font-size: 10.5px; color: var(--text-dim); text-align: right; }
 .field.wide > span.label { width: 104px; }
 
+/* .flex-row rides along on the same control styling: a flex card's boxes are the same controls, laid
+   out a row per constraint rather than a row per field. */
 .field select,
-.field input {
+.field input,
+.flex-row select,
+.flex-row input {
   flex: 1;
   min-width: 0;
   height: 26px;
@@ -979,10 +983,12 @@ a:hover { color: var(--accent-text); }
   font-size: 11px;
 }
 
-.field input { padding: 0 8px; font-family: var(--font-mono); }
+.field input,
+.flex-row input { padding: 0 8px; font-family: var(--font-mono); }
 
 /* The native dropdown list is OS chrome and cannot be themed; the closed control can. */
-.field select {
+.field select,
+.flex-row select {
   appearance: none;
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256' fill='%239397ab'><path d='M213.66 101.66l-80 80a8 8 0 0 1-11.32 0l-80-80A8 8 0 0 1 48 88h160a8 8 0 0 1 5.66 13.66z'/></svg>");
   background-repeat: no-repeat;
@@ -1197,6 +1203,113 @@ a:hover { color: var(--accent-text); }
   flex: 1 1 0;
   min-width: 0;
 }
+
+/* The promoted card. Marked out from the hand-written ones beside it because its fields are the user's
+   own doing and can be given back, which a card that looked identical would not say. */
+.filter-body .group-card.promoted-card { border-color: var(--accent-border); }
+.filter-body .group-card.promoted-card > .group-head { background: var(--accent-tint-2); }
+
+/* A flex card. It draws a row per constraint rather than a row per column, so it opts out of the
+   label/control grid its neighbours use and lays each row out as one line of controls.
+
+   Its floor is one whole constraint wide, well past the 268px a curated card settles for. Beyond that
+   it is left to flow like every other card, which is what keeps the form short: most of these cards are
+   empty most of the time - ten linked rows, one or two of them asked about - and an empty card is one
+   blank picker that has no business owning a line of its own. A card being used states a wider
+   max-content, so it claims the room its constraints need and the empty ones pair up beside each
+   other. */
+.filter-body .group-card.flex-card { min-width: min(100%, 510px); }
+.filter-body .group-card.flex-card.in-use { flex-basis: 100%; }
+
+/* Constraints flow into as many columns as the card is wide enough to hold, and grow downwards from
+   there. One per line wasted most of a wide screen and pushed the rest of the form off the bottom.
+
+   The track floor is the width a whole constraint needs on ONE line - two readable boxes, the operator
+   buttons, and the three that negate, remove and pin it. Packing tighter than that is a false economy:
+   the buttons wrap under the boxes and the row doubles in height, so three columns of two-line rows are
+   taller than three columns of one-line rows and no denser than one column of them. Below the floor a
+   narrow pane gets a single roomy constraint per line instead of a crushed pair. */
+.filter-body .flex-rows {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(486px, 1fr));
+  align-items: start;
+  gap: 8px 14px;
+  padding: 11px 12px 0;
+}
+
+.filter-body .flex-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* The column picker is the row's subject and the value box is what is being read back, so those two
+   share the width and the buttons take only what they need. Both keep a floor: past it the buttons
+   wrap under the pair rather than squeezing either into an unreadable sliver. */
+.filter-body .flex-row > select.col {
+  flex: 1 1 148px;
+  min-width: 132px;
+  font-family: var(--font-mono);
+}
+
+.filter-body .flex-row > input {
+  flex: 1 1 136px;
+  min-width: 132px;
+}
+
+/* Tighter than a curated row's: here the operators share their line with two boxes rather than one, and
+   every pixel they give back is a pixel of the floor above - which is what decides how many constraints
+   fit across. */
+.filter-body .flex-row .segmented.op button { padding: 0 4px; }
+.filter-body .flex-row .icon-btn { width: 23px; }
+
+.filter-body .flex-row .icon-btn { flex: none; width: 26px; height: 24px; }
+.filter-body .flex-row .icon-btn.not.on { background: var(--danger-tint, var(--accent-tint)); }
+
+/* An unfinished row - the trailing blank one - is dimmed until it is pointed at a column, so a card
+   reads as its constraints plus an invitation rather than as one more empty control. */
+.filter-body .flex-row > select.col:not(:only-child) { opacity: 1; }
+.filter-body .flex-row > select.col:only-child { opacity: 0.72; }
+
+/* The apply button, kept within reach of a form that is several screens tall. Sticky rather than fixed
+   so it belongs to its pane: the same form is drawn in a split pane and in a pop-out window, and a
+   window-anchored button would sit outside whichever one the user is filtering.
+
+   It is last in the flow and reserves its own strip, so at the end of the scroll it comes to rest below
+   the foot instead of covering the button it stands in for. */
+.filter-float {
+  position: sticky;
+  bottom: 16px;
+  z-index: 6;
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+
+  /* The strip is the button plus the sticky offset, with the button sitting at its foot. Sticky holds
+     the strip's bottom edge that offset above the pane, so while the form is scrolled the button rides
+     just above the pane's bottom - and at the end of the scroll, where sticky lifts the strip by the
+     same offset, the button comes to rest exactly at the strip's own top: clear of the foot rather than
+     over the button it stands in for. */
+  height: 46px;
+  align-items: flex-end;
+
+  /* The strip spans the form's width but is empty either side of the button; without this it would
+     swallow clicks meant for the card underneath it. */
+  pointer-events: none;
+}
+
+.filter-float .apply-btn {
+  pointer-events: auto;
+  height: 30px;
+  background: var(--raised);
+  border-color: var(--accent-border);
+  box-shadow: var(--elev);
+}
+
+.filter-float .apply-btn:hover { background: var(--accent-tint); }
+.filter-float .apply-btn:active { background: var(--accent-tint-2); }
 
 /* One OR block. The caption and the rail say which cards are ANDed together, so a block still reads
    as one unit after its cards have wrapped onto several lines. */

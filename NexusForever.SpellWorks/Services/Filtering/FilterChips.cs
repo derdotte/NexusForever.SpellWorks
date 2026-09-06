@@ -70,7 +70,10 @@ namespace NexusForever.SpellWorks.Services.Filtering
 
         private static string Label(FilterFieldSchema field, FilterCondition condition)
         {
-            string name = field.Label.ToLowerInvariant();
+            // a flex column's own label is just a column name, and "databits00 ≥ 5"
+            // does not say which row it was asked of. The chips row is where the whole query is meant to
+            // be readable in one line, so it reads the label that stands on its own.
+            string name = field.QualifiedLabel.ToLowerInvariant();
             string not = condition.Negate ? "not " : "";
 
             if (field.Control == FilterControlKind.Toggle)

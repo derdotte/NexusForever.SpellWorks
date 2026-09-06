@@ -1,4 +1,4 @@
-using CommunityToolkit.Mvvm.Messaging;
+﻿using CommunityToolkit.Mvvm.Messaging;
 using NexusForever.Game.Static.Spell;
 using NexusForever.SpellWorks.Core.Messages;
 using NexusForever.SpellWorks.Core.Models;
@@ -17,6 +17,19 @@ namespace NexusForever.SpellWorks.Services
         public string Locale { get; set; } = "enUS";
         public bool LoadOnStart { get; set; } = true;
         public bool RestoreWindows { get; set; } = true;
+
+        /// <summary>
+        /// Whether a saved filter comes back on the next start.
+        /// </summary>
+        /// <remarks>
+        /// Gates the load, never the save: switched off, the app starts clean but <c>Workspace.json</c>
+        /// keeps every query, and switching it back on returns them. A preference that quietly deleted
+        /// work would be the one setting nobody could risk trying.
+        /// </remarks>
+        public bool RestoreFilters { get; set; } = true;
+
+        /// <summary>As <see cref="RestoreFilters"/>, for the promoted flex columns.</summary>
+        public bool RestorePromoted { get; set; } = true;
         public bool MonospaceIds { get; set; } = true;
         public bool RailLabels { get; set; } = true;
     }

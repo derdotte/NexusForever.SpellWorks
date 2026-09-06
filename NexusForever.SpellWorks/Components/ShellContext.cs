@@ -1,4 +1,4 @@
-using Microsoft.JSInterop;
+﻿using Microsoft.JSInterop;
 using NexusForever.Game.Static.Entity;
 using NexusForever.Game.Static.Spell;
 using NexusForever.SpellWorks.Core.Models;
@@ -135,6 +135,41 @@ namespace NexusForever.SpellWorks.Components
         }
 
         // ------------------------------------------------------------------ menu builders
+
+        /// <summary>
+        /// Promote a flex column to a field of its own, or put it back.
+        /// </summary>
+        /// <remarks>
+        /// A promotion moves nothing: the column keeps its key, so every condition already written on it
+        /// stays exactly where it is and only the row's home changes - a labelled field at the top of
+        /// every block rather than one line of the column picker's card. That is what makes both
+        /// directions safe to offer as a single toggling item.
+        ///
+        /// Alone among the menu actions this one saves. The others move a selection or narrow a grid,
+        /// which the next save picks up anyway; a promotion is a standing preference about the shape of
+        /// the form, and losing it to a crash would be losing a decision rather than a view.
+        /// </remarks>
+        public List<MenuItem> PromoteMenu(PaneState pane, FilterColumnFieldSchema column)
+        {
+            bool promoted = pane.Promoted.Contains(column.Key);
+
+            return
+            [
+                promoted
+                    ? Item("ph ph-arrow-u-left-up", "Demote to the column picker", "", () =>
+                    {
+                        pane.Promoted.Remove(column.Key);
+                        State.Notify();
+                        Store.Save();
+                    })
+                    : Item("ph ph-push-pin", "Promote to its own field", "", () =>
+                    {
+                        pane.Promoted.Add(column.Key);
+                        State.Notify();
+                        Store.Save();
+                    })
+            ];
+        }
 
         public List<MenuItem> SpellMenu(ISpellModel spell, string scope)
         {

@@ -39,6 +39,28 @@ namespace NexusForever.SpellWorks.Services.Filtering
 
         public required string Label { get; init; }
 
+        /// <summary>
+        /// The label with enough context to stand on its own, away from the card that titles it.
+        /// </summary>
+        /// <remarks>
+        /// A card's title says which row its fields belong to, so inside one a bare name is unambiguous.
+        /// The chips row and the promoted card have no such heading - "databits00" there could be any of
+        /// three tables - so both read this instead.
+        /// </remarks>
+        public virtual string QualifiedLabel => Label;
+
+        /// <summary>
+        /// Whether switching this toggle on means "hide these" rather than "show only these".
+        /// </summary>
+        /// <remarks>
+        /// Every toggle is phrased positively - <c>Deprecated</c> selects deprecated spells - because a
+        /// filter that reads as its own negation cannot be chipped or negated readably. But the useful
+        /// reading of both housekeeping toggles is the negative one, so the form seeds them negated and
+        /// the user flips the <c>!</c> to get the other. Which toggles those are is the schema's to say;
+        /// it used to be a key comparison in Razor, which does not survive a second such field.
+        /// </remarks>
+        public bool SeedNegated { get; init; }
+
         /// <summary>The titled card this field sits under in the form.</summary>
         public required string GroupTitle { get; init; }
 
@@ -87,6 +109,38 @@ namespace NexusForever.SpellWorks.Services.Filtering
 
         /// <summary>The compiled filter, or null when the value does not parse.</summary>
         protected abstract object Build(FilterCondition condition);
+    }
+
+    /// <summary>
+    /// One column of one linked game table row, offered by a flex card rather than written out by hand.
+    /// </summary>
+    /// <remarks>
+    /// Untyped in the element, unlike <see cref="FilterFieldSchema{T}"/>, and deliberately so: a constraint
+    /// on a column of a <c>Spell4Effects</c> row has nothing to say about what owns that row, so the very
+    /// same field objects serve the spell browser, the effects grid and the procs grid. What differs
+    /// between those panes is only how the rows are reached, which is the flex source's job.
+    ///
+    /// <see cref="Source"/> is also what the compiler groups by: every condition on one source within one
+    /// filter group is answered by one row, so a block asking for two things asks them of the same effect.
+    /// </remarks>
+    public sealed class FilterColumnFieldSchema : FilterFieldSchema
+    {
+        /// <summary>The flex source this column belongs to - <c>"effects"</c>, <c>"base"</c>, …</summary>
+        public required string Source { get; init; }
+
+        /// <summary>The linked row's name - <c>"Effects"</c>, <c>"Base"</c>. Titles the card and the label.</summary>
+        public required string SourceName { get; init; }
+
+        /// <summary>Which linked row this column belongs to, said in full.</summary>
+        public override string QualifiedLabel => $"{SourceName} · {Label}";
+
+        /// <summary>
+        /// Turns one condition into one constraint on the row, or returns null when the value does not
+        /// parse. Never applies <see cref="FilterCondition.Negate"/> - polarity is the compiler's job.
+        /// </summary>
+        public required Func<FilterCondition, IModelFilter<object>> RowFactory { get; init; }
+
+        protected override object Build(FilterCondition condition) => RowFactory(condition);
     }
 
     /// <summary>

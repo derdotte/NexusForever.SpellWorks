@@ -24,6 +24,7 @@ namespace NexusForever.SpellWorks.Services.Filtering
         public const string EffectTargetFlags   = "effectTargetFlags";
         public const string Deprecated          = "deprecated";
         public const string HasProcs            = "hasProcs";
+        public const string TestSpell           = "testSpell";
 
         // Spell4 numeric thresholds
         public const string CastTime            = "castTime";
@@ -83,5 +84,37 @@ namespace NexusForever.SpellWorks.Services.Filtering
         public const string ColumnPrefix = "col:";
 
         public static string Column(string columnName) => ColumnPrefix + columnName;
+
+        // Flex columns
+        //
+        // One key per (linked row, column) pair, so a flex condition is an ordinary condition and needs
+        // nothing of its own from the query model, the persisted file or the compiler's diagnostics.
+
+        /// <summary>Prefix for a condition on one column of one linked game table row.</summary>
+        public const string FlexPrefix = "fx:";
+
+        /// <summary>
+        /// The key for <paramref name="column"/> of the linked row <paramref name="source"/> names -
+        /// <c>fx:effects.DataBits00</c>.
+        /// </summary>
+        public static string Flex(string source, string column) => $"{FlexPrefix}{source}.{column}";
+
+        // Flex source keys. Persisted inside every flex condition's key, so as fixed as the keys are.
+        public const string SpellSource            = "spell4";
+        public const string BaseSource             = "base";
+        public const string EffectsSource          = "effects";
+        public const string HitResultSource        = "base.hitResult";
+        public const string TargetMechanicsSource  = "base.targetMechanics";
+        public const string TargetAngleSource      = "base.targetAngle";
+        public const string PrerequisitesSource    = "base.prerequisites";
+        public const string ValidTargetsSource     = "base.validTargets";
+        public const string PrerequisiteSpellSource = "base.prerequisiteSpell";
+        public const string SpellTypeSource        = "base.spellType";
+
+        /// <summary>The effect row a single effect is, on the pane that lists one spell's effects.</summary>
+        public const string EffectRowSource = "effect";
+
+        /// <summary>The effect row a proc is read from, on the procs pane.</summary>
+        public const string ProcRowSource = "proc";
     }
 }

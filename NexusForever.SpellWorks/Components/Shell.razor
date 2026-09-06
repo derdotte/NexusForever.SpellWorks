@@ -109,6 +109,7 @@
                          @key="tabId"
                          @oncontextmenu:preventDefault="true"
                          @oncontextmenu="e => ShowViewMenu(e, tabId, false)"
+                         @onmouseup="e => MiddleClose(e, tabId)"
                          @onpointerdown="e => BeginTabDrag(e, tabId)">
                         <button type="button" class="tab-select" @onclick="() => State.ActivateOnly(tabId)">
                             <i class="@tab.Icon"></i>@tab.Title
@@ -468,6 +469,25 @@
             }
         </button>
     };
+
+    /// <summary>
+    /// Close a tab on a middle click, anywhere on it.
+    /// </summary>
+    /// <remarks>
+    /// On the whole tab rather than on its x, which is the point of the gesture: the x is already one
+    /// click away and needs aiming. The button check follows <see cref="BeginTabDrag"/> - 1 is the
+    /// middle button, and every other press on a tab belongs to the drag or the menu.
+    ///
+    /// On mouseup rather than mousedown, so a mis-aimed press can still be dragged off the tab before it
+    /// counts, and because <c>onauxclick</c> is not one of the events Blazor binds.
+    /// </remarks>
+    private void MiddleClose(MouseEventArgs e, string viewId)
+    {
+        if (e.Button != 1)
+            return;
+
+        State.CloseView(viewId);
+    }
 
     private void ShowViewMenu(MouseEventArgs e, string viewId, bool fromRail)
     {
